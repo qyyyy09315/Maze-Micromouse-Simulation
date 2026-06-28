@@ -106,7 +106,7 @@ export function useMazeSimulation(config: SimulationConfig) {
     const goal = config.customGoal.x === 0 && config.customGoal.y === 0 ? center : config.customGoal;
     const newMaze = generateMaze(config.mazeSize, config.obstacleRate, config.customStart, goal);
     setMaze(newMaze);
-  }, [config.mazeSize, config.obstacleRate, config.customStart]);
+  }, [config.mazeSize, config.obstacleRate, config.customStart, config.customGoal]);
 
   // ── Initialize agents ──
   const initializeAgents = useCallback(() => {
@@ -192,8 +192,10 @@ export function useMazeSimulation(config: SimulationConfig) {
     if (cfg.mazeSource === 'file' && cfg.fileContent) {
       const fileMaze = parseMazeFile(cfg.fileContent, cfg.mazeSize);
       if (fileMaze) {
-        fileMaze[cfg.customStart.y][cfg.customStart.x].type = 'start';
-        fileMaze[center.y][center.x].type = 'goal';
+        const start = clampPosition(cfg.customStart, cfg.mazeSize);
+        fileMaze[start.y][start.x].type = 'start';
+        const goalPos = clampPosition(cfg.customGoal.x === 0 && cfg.customGoal.y === 0 ? center : cfg.customGoal, cfg.mazeSize);
+        fileMaze[goalPos.y][goalPos.x].type = 'goal';
         setMaze(fileMaze);
         // Initialize agents after maze is set
         setTimeout(() => {
@@ -445,9 +447,11 @@ export function useMazeSimulation(config: SimulationConfig) {
       toast.error('无效的迷宫文件：行列数不匹配或包含非法字符');
       return false;
     }
-    parsed[cfg.customStart.y][cfg.customStart.x].type = 'start';
+    const start = clampPosition(cfg.customStart, cfg.mazeSize);
+    parsed[start.y][start.x].type = 'start';
     const center = getCenterPosition(cfg.mazeSize);
-    parsed[center.y][center.x].type = 'goal';
+    const goalPos = clampPosition(cfg.customGoal.x === 0 && cfg.customGoal.y === 0 ? center : cfg.customGoal, cfg.mazeSize);
+    parsed[goalPos.y][goalPos.x].type = 'goal';
     setMaze(parsed);
     mazeRef.current = parsed;
     toast.success('迷宫文件解析成功！');

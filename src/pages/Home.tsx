@@ -56,9 +56,15 @@ export default function Home() {
     });
   }, [agentCount, selectedAlgorithm]);
 
-  // Initialize customGoal to center when maze size changes
+  // Update customGoal to center on maze size change, clamp customStart to bounds
   useEffect(() => {
-    setCustomGoal({ x: Math.floor(mazeSize / 2), y: Math.floor(mazeSize / 2) });
+    const size = mazeSize;
+    setCustomGoal({ x: Math.floor(size / 2), y: Math.floor(size / 2) });
+    // Clamp customStart to prevent out-of-bounds crash when maze shrinks
+    setCustomStart(prev => ({
+      x: Math.min(prev.x, size - 1),
+      y: Math.min(prev.y, size - 1),
+    }));
   }, [mazeSize]);
 
   // ── Simulation hook ──

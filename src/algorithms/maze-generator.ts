@@ -10,6 +10,10 @@ const DIRECTIONS = [
 
 const MAX_RECURSION_DEPTH = 10;
 
+function isValidPos(p: Position, size: number): boolean {
+  return p.x >= 0 && p.x < size && p.y >= 0 && p.y < size;
+}
+
 /**
  * Generate a maze using recursive backtracking + BFS solvability guarantee.
  * Optimized: batch obstacle placement with single BFS verification at end,
@@ -22,8 +26,13 @@ export function generateMaze(
   customGoal?: Position,
   recursionDepth = 0,
 ): Maze {
-  const start = customStart || { x: 0, y: 0 };
-  const goal = customGoal || { x: size - 1, y: size - 1 };
+  // Clamp positions to maze bounds to prevent out-of-bounds crashes
+  let start: Position = customStart && isValidPos(customStart, size)
+    ? { ...customStart }
+    : { x: 0, y: 0 };
+  let goal: Position = customGoal && isValidPos(customGoal, size)
+    ? { ...customGoal }
+    : { x: size - 1, y: size - 1 };
 
   // Fallback for max recursion depth
   if (recursionDepth >= MAX_RECURSION_DEPTH) {
