@@ -1,4 +1,5 @@
 import type { Agent, Position, Maze } from '../types';
+import { COLLISION_MAX_ROUNDS } from '../types';
 
 /**
  * Check and resolve collisions between agents.
@@ -30,7 +31,7 @@ export function checkCollisions(
   }
 
   // Resolve collisions — iterate until no overlaps remain
-  const maxRounds = 10;
+  const maxRounds = COLLISION_MAX_ROUNDS;
   for (let round = 0; round < maxRounds; round++) {
     const currentMap = new Map<string, number[]>();
     for (const agent of agents) {

@@ -1,5 +1,5 @@
 import {
-  PlayCircle, PauseCircle, RotateCcw, Settings,
+  Play, Pause, RotateCcw,
 } from 'lucide-react';
 import type {
   HeuristicType, PathfindingAlgorithm, Position,
@@ -7,7 +7,6 @@ import type {
 import { MIN_MAZE_SIZE, MAX_MAZE_SIZE, MAX_AGENTS } from '../types';
 
 interface ControlPanelProps {
-  // Config
   agentCount: number;
   setAgentCount: (n: number) => void;
   mazeSize: number;
@@ -38,7 +37,6 @@ interface ControlPanelProps {
   setCustomGoal: (p: Position) => void;
   isRunning: boolean;
   isPaused: boolean;
-  // Actions
   onStart: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -69,56 +67,57 @@ export default function ControlPanel(props: ControlPanelProps) {
     onFileUpload, mazeFileName,
   } = props;
 
-  const inputCls = 'w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500';
-  const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2';
+  const inputCls = 'w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400 transition-shadow duration-200';
+  const labelCls = 'block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5';
+  const btnSmall = 'px-2.5 py-1.5 text-sm rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all duration-150 active:scale-[0.96] disabled:opacity-40 disabled:cursor-not-allowed';
+  const btnMain = 'inline-flex items-center justify-center w-full px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500';
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 h-full">
-      <h2 className="text-xl font-semibold mb-6 flex items-center">
-        <Settings className="w-5 h-5 mr-2 text-blue-500" />
+    <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5">
+      <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-5 tracking-tight">
         实验设置
       </h2>
 
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Agent count */}
         <div>
           <label className={labelCls}>智能体数量</label>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-2">
             <button onClick={() => setAgentCount(Math.max(1, agentCount - 1))} disabled={isRunning}
-              className="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50">-</button>
-            <span className="text-lg font-medium">{agentCount}</span>
+              className={btnSmall}>−</button>
+            <span className="w-8 text-center text-sm font-semibold tabular-nums">{agentCount}</span>
             <button onClick={() => setAgentCount(Math.min(MAX_AGENTS, agentCount + 1))} disabled={isRunning}
-              className="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50">+</button>
+              className={btnSmall}>+</button>
           </div>
         </div>
 
         {/* Maze size */}
         <div>
-          <label className={labelCls}>迷宫大小: {mazeSize}×{mazeSize}</label>
-          <div className="flex items-center space-x-2">
+          <label className={labelCls}>迷宫大小 {mazeSize}×{mazeSize}</label>
+          <div className="flex items-center gap-2">
             <input type="number" min={MIN_MAZE_SIZE} max={MAX_MAZE_SIZE} step={10} value={mazeSize}
               onChange={e => setMazeSize(Math.max(MIN_MAZE_SIZE, Math.min(MAX_MAZE_SIZE, parseInt(e.target.value) || 20)))}
               disabled={isRunning} className={inputCls} />
             <button onClick={() => setMazeSize(Math.max(MIN_MAZE_SIZE, mazeSize - 10))} disabled={isRunning}
-              className="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50">-</button>
+              className={btnSmall}>−</button>
             <button onClick={() => setMazeSize(Math.min(MAX_MAZE_SIZE, mazeSize + 10))} disabled={isRunning}
-              className="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50">+</button>
+              className={btnSmall}>+</button>
           </div>
           {mazeSize > 100 && (
-            <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
-              大迷宫（&gt;100）寻路计算量较大，建议使用 1–2 个智能体以获得流畅体验
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
+              大迷宫建议使用 1–2 个智能体
             </p>
           )}
         </div>
 
         {/* Obstacle rate */}
         <div>
-          <label className={labelCls}>障碍率: {(obstacleRate * 100).toFixed(0)}%</label>
+          <label className={labelCls}>障碍率 {(obstacleRate * 100).toFixed(0)}%</label>
           <input type="range" min="0.1" max="0.5" step="0.05" value={obstacleRate}
             onChange={e => setObstacleRate(parseFloat(e.target.value))}
             disabled={isRunning}
-            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer" />
-          <p className="text-xs text-gray-400 mt-1">合理范围 10%–50%，超过 50% 迷宫可能不可解</p>
+            className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full appearance-none cursor-pointer accent-indigo-500" />
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">10% — 50%，超过 50% 可能不可解</p>
         </div>
 
         {/* Heuristic */}
@@ -126,7 +125,7 @@ export default function ControlPanel(props: ControlPanelProps) {
           <label className={labelCls}>启发函数</label>
           <select value={selectedHeuristic} onChange={e => setSelectedHeuristic(e.target.value as HeuristicType | 'auto')}
             disabled={isRunning} className={inputCls}>
-            <option value="auto">自动选择（基于障碍率）</option>
+            <option value="auto">自动选择</option>
             <option value="manhattan">曼哈顿距离</option>
             <option value="euclidean">欧几里得距离</option>
             <option value="diagonal">对角线优化</option>
@@ -138,45 +137,45 @@ export default function ControlPanel(props: ControlPanelProps) {
           <label className={labelCls}>路径规划算法</label>
           <select value={selectedAlgorithm} onChange={e => setSelectedAlgorithm(e.target.value as PathfindingAlgorithm)}
             disabled={isRunning} className={inputCls}>
-            <option value="astar">A* 算法</option>
-            <option value="bfs">BFS 算法</option>
+            <option value="astar">A*</option>
+            <option value="bfs">BFS</option>
           </select>
         </div>
 
         {/* Same start */}
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
           <input type="checkbox" id="sameStart" checked={useSameStart}
             onChange={e => setUseSameStart(e.target.checked)} disabled={isRunning}
-            className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
-          <label htmlFor="sameStart" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            智能体从同一起点出发
+            className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500" />
+          <label htmlFor="sameStart" className="text-sm text-zinc-700 dark:text-zinc-300">
+            同一起点出发
           </label>
         </div>
 
         {/* Visualization */}
         <div>
-          <label className={labelCls}>可视化选项</label>
-          <div className="space-y-3">
-            <div className="flex items-center">
+          <label className={labelCls}>可视化</label>
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2">
               <input type="checkbox" id="showExploration" checked={showExploration}
                 onChange={e => setShowExploration(e.target.checked)} disabled={isRunning}
-                className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
-              <label htmlFor="showExploration" className="text-sm font-medium text-gray-700 dark:text-gray-300">显示搜索过程</label>
+                className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500" />
+              <label htmlFor="showExploration" className="text-sm text-zinc-700 dark:text-zinc-300">搜索过程</label>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center gap-2">
               <input type="checkbox" id="showPath" checked={showPath}
                 onChange={e => setShowPath(e.target.checked)} disabled={isRunning}
-                className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
-              <label htmlFor="showPath" className="text-sm font-medium text-gray-700 dark:text-gray-300">显示路径</label>
+                className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500" />
+              <label htmlFor="showPath" className="text-sm text-zinc-700 dark:text-zinc-300">规划路径</label>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                可视化速度: {visualizationSpeed}ms
+              <label className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 block">
+                速度 {visualizationSpeed}ms
               </label>
               <input type="range" min="10" max="200" step="10" value={visualizationSpeed}
                 onChange={e => setVisualizationSpeed(parseInt(e.target.value))}
                 disabled={isRunning}
-                className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer" />
+                className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full appearance-none cursor-pointer accent-indigo-500" />
             </div>
           </div>
         </div>
@@ -184,133 +183,132 @@ export default function ControlPanel(props: ControlPanelProps) {
         {/* Maze source */}
         <div>
           <label className={labelCls}>迷宫来源</label>
-          <div className="flex space-x-4 mb-3">
-            <label className="flex items-center">
+          <div className="flex gap-4 mb-3">
+            <label className="flex items-center gap-1.5">
               <input type="radio" name="mazeSource" value="random" checked={mazeSource === 'random'}
                 onChange={() => setMazeSource('random')} disabled={isRunning}
-                className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
-              随机生成
+                className="h-4 w-4 border-zinc-300 text-indigo-600 focus:ring-indigo-500" />
+              <span className="text-sm text-zinc-700 dark:text-zinc-300">随机</span>
             </label>
-            <label className="flex items-center">
+            <label className="flex items-center gap-1.5">
               <input type="radio" name="mazeSource" value="file" checked={mazeSource === 'file'}
                 onChange={() => setMazeSource('file')} disabled={isRunning}
-                className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
-              文件导入
+                className="h-4 w-4 border-zinc-300 text-indigo-600 focus:ring-indigo-500" />
+              <span className="text-sm text-zinc-700 dark:text-zinc-300">文件</span>
             </label>
           </div>
 
           {mazeSource === 'file' && (
             <div className="mb-3">
               <input type="file" accept=".txt" onChange={onFileUpload} disabled={isRunning}
-                className="w-full text-sm text-gray-500 dark:text-gray-400
-                  file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
-                  file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700
-                  dark:file:bg-blue-700 dark:file:text-blue-200 hover:file:bg-blue-100" />
+                className="w-full text-sm text-zinc-500 dark:text-zinc-400
+                  file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0
+                  file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700
+                  dark:file:bg-indigo-900/30 dark:file:text-indigo-300 hover:file:bg-indigo-100" />
               {mazeFileName && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">已选择文件: {mazeFileName}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5">{mazeFileName}</p>
               )}
             </div>
           )}
 
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">起点坐标 (x, y)</label>
-              <div className="flex space-x-2">
+              <label className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 block">起点 (x, y)</label>
+              <div className="flex gap-2">
                 <input type="number" min="0" max={mazeSize - 1} value={customStart.x}
                   onChange={e => setCustomStart({ ...customStart, x: parseInt(e.target.value) })}
-                  disabled={isRunning} className="w-24 px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  disabled={isRunning} className={`${inputCls} w-20`} />
                 <input type="number" min="0" max={mazeSize - 1} value={customStart.y}
                   onChange={e => setCustomStart({ ...customStart, y: parseInt(e.target.value) })}
-                  disabled={isRunning} className="w-24 px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  disabled={isRunning} className={`${inputCls} w-20`} />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">终点坐标 (x, y)</label>
-              <div className="flex space-x-2">
+              <label className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 block">终点 (x, y)</label>
+              <div className="flex gap-2">
                 <input type="number" min="0" max={mazeSize - 1} value={customGoal.x}
                   onChange={e => setCustomGoal({ ...customGoal, x: parseInt(e.target.value) })}
-                  disabled={isRunning} className="w-24 px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  disabled={isRunning} className={`${inputCls} w-20`} />
                 <input type="number" min="0" max={mazeSize - 1} value={customGoal.y}
                   onChange={e => setCustomGoal({ ...customGoal, y: parseInt(e.target.value) })}
-                  disabled={isRunning} className="w-24 px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  disabled={isRunning} className={`${inputCls} w-20`} />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Per-agent heuristics */}
+        {/* Per-agent config */}
         {agentCount > 1 && (
-          <div>
-            <label className={labelCls}>各智能体启发函数</label>
-            <div className="space-y-2">
-              {Array.from({ length: agentCount }).map((_, i) => (
-                <div key={i} className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-500 dark:text-gray-400 w-16">智能体 {i + 1}:</span>
-                  <select value={agentHeuristics[i]}
-                    onChange={e => {
-                      const next = [...agentHeuristics];
-                      next[i] = e.target.value as HeuristicType | 'auto';
-                      setAgentHeuristics(next);
-                    }}
-                    disabled={isRunning}
-                    className="flex-1 px-3 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="auto">自动选择</option>
-                    <option value="manhattan">曼哈顿距离</option>
-                    <option value="euclidean">欧几里得距离</option>
-                    <option value="diagonal">对角线优化</option>
-                  </select>
-                </div>
-              ))}
+          <>
+            <div>
+              <label className={labelCls}>各智能体启发函数</label>
+              <div className="space-y-1.5">
+                {Array.from({ length: agentCount }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 w-16">智能体 {i + 1}</span>
+                    <select value={agentHeuristics[i]}
+                      onChange={e => {
+                        const next = [...agentHeuristics];
+                        next[i] = e.target.value as HeuristicType | 'auto';
+                        setAgentHeuristics(next);
+                      }}
+                      disabled={isRunning}
+                      className={`${inputCls} flex-1 text-xs`}>
+                      <option value="auto">自动</option>
+                      <option value="manhattan">曼哈顿</option>
+                      <option value="euclidean">欧几里得</option>
+                      <option value="diagonal">对角线</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+
+            <div>
+              <label className={labelCls}>各智能体算法</label>
+              <div className="space-y-1.5">
+                {Array.from({ length: agentCount }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 w-16">智能体 {i + 1}</span>
+                    <select value={agentAlgorithms[i]}
+                      onChange={e => {
+                        const next = [...agentAlgorithms];
+                        next[i] = e.target.value as PathfindingAlgorithm;
+                        setAgentAlgorithms(next);
+                      }}
+                      disabled={isRunning}
+                      className={`${inputCls} flex-1 text-xs`}>
+                      <option value="astar">A*</option>
+                      <option value="bfs">BFS</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
         )}
 
-        {/* Per-agent algorithms */}
-        {agentCount > 1 && (
-          <div>
-            <label className={labelCls}>各智能体路径规划算法</label>
-            <div className="space-y-2">
-              {Array.from({ length: agentCount }).map((_, i) => (
-                <div key={i} className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-500 dark:text-gray-400 w-16">智能体 {i + 1}:</span>
-                  <select value={agentAlgorithms[i]}
-                    onChange={e => {
-                      const next = [...agentAlgorithms];
-                      next[i] = e.target.value as PathfindingAlgorithm;
-                      setAgentAlgorithms(next);
-                    }}
-                    disabled={isRunning}
-                    className="flex-1 px-3 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="astar">A* 算法</option>
-                    <option value="bfs">BFS 算法</option>
-                  </select>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Control buttons */}
-        <div className="flex flex-col space-y-3 mt-6">
+        {/* Action buttons */}
+        <div className="flex flex-col gap-2 pt-2">
           {!isRunning ? (
             <button onClick={onStart}
-              className="flex items-center justify-center px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all font-medium">
-              <PlayCircle className="w-5 h-5 mr-2" />开始实验
+              className={`${btnMain} bg-indigo-600 text-white hover:bg-indigo-700`}>
+              <Play className="w-4 h-4 mr-1.5" />开始实验
             </button>
           ) : isPaused ? (
             <button onClick={onResume}
-              className="flex items-center justify-center px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all font-medium">
-              <PlayCircle className="w-5 h-5 mr-2" />继续实验
+              className={`${btnMain} bg-emerald-600 text-white hover:bg-emerald-700`}>
+              <Play className="w-4 h-4 mr-1.5" />继续
             </button>
           ) : (
             <button onClick={onPause}
-              className="flex items-center justify-center px-4 py-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-all font-medium">
-              <PauseCircle className="w-5 h-5 mr-2" />暂停实验
+              className={`${btnMain} bg-amber-500 text-white hover:bg-amber-600`}>
+              <Pause className="w-4 h-4 mr-1.5" />暂停
             </button>
           )}
           <button onClick={onReset}
-            className="flex items-center justify-center px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-all font-medium">
-            <RotateCcw className="w-5 h-5 mr-2" />重置实验
+            className={`${btnMain} bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700`}>
+            <RotateCcw className="w-4 h-4 mr-1.5" />重置
           </button>
         </div>
       </div>
