@@ -18,6 +18,7 @@ export type PathfindingAlgorithm = 'bfs' | 'astar';
 export interface Agent {
   id: number;
   position: Position;
+  previousPosition: Position | null;
   path: Position[];
   exploredNodes: Position[];
   color: string;
