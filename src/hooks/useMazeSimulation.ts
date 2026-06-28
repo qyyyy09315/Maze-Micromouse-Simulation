@@ -59,43 +59,6 @@ function parseMazeFile(content: string, mazeSize: number): Maze | null {
   return maze;
 }
 
-function adjustObstacleRate(
-  maze: Maze, targetRate: number, start: Position, goal: Position,
-): Maze {
-  const newMaze = maze.map(row => row.map(cell => ({ ...cell })));
-  const total = newMaze.length * newMaze[0].length;
-  let current = 0;
-  for (const row of newMaze) for (const c of row) if (c.type === 'obstacle') current++;
-  const target = Math.round(targetRate * total);
-
-  if (target > current) {
-    let added = 0;
-    let safety = 0;
-    while (added < target - current && safety++ < total * 2) {
-      const x = Math.floor(Math.random() * newMaze[0].length);
-      const y = Math.floor(Math.random() * newMaze.length);
-      if (
-        (x === start.x && y === start.y) ||
-        (x === goal.x && y === goal.y) ||
-        newMaze[y][x].type === 'obstacle'
-      ) continue;
-      newMaze[y][x].type = 'obstacle';
-      added++;
-    }
-  } else if (target < current) {
-    let removed = 0;
-    let safety = 0;
-    while (removed < current - target && safety++ < total * 2) {
-      const x = Math.floor(Math.random() * newMaze[0].length);
-      const y = Math.floor(Math.random() * newMaze.length);
-      if (newMaze[y][x].type !== 'obstacle') continue;
-      newMaze[y][x].type = 'empty';
-      removed++;
-    }
-  }
-  return newMaze;
-}
-
 // ─── Hook ─────────────────────────────────────────────────
 
 export interface SimulationConfig {
@@ -138,12 +101,19 @@ export function useMazeSimulation(config: SimulationConfig) {
   resultsRef.current = competitionResults;
   const tickRef = useRef(0);
 
+  // ✅ Base maze ref — stores the original maze structure for reference.
+  // Dynamic obstacle adjustment only modifies cells that were 'empty' in the
+  // base maze, preserving structural walls.
+  const baseMazeRef = useRef<Maze | null>(null);
+
   // ── Regenerate maze when size/obstacle/start changes ──
   useEffect(() => {
     const center = getCenterPosition(config.mazeSize);
     const goal = config.customGoal.x === 0 && config.customGoal.y === 0 ? center : config.customGoal;
     const newMaze = generateMaze(config.mazeSize, config.obstacleRate, config.customStart, goal);
     setMaze(newMaze);
+    // Deep-copy as base reference for dynamic obstacle adjustment
+    baseMazeRef.current = newMaze.map(row => row.map(cell => ({ ...cell })));
   }, [config.mazeSize, config.obstacleRate, config.customStart]);
 
   // ── Initialize agents ──
@@ -189,6 +159,7 @@ export function useMazeSimulation(config: SimulationConfig) {
       newAgents.push({
         id: i,
         position: clampPosition(startPos, size),
+        previousPosition: null,
         path: result.path.length > 0
           ? result.path.map(p => clampPosition(p, size))
           : [clampPosition(startPos, size)],
@@ -233,6 +204,7 @@ export function useMazeSimulation(config: SimulationConfig) {
         fileMaze[cfg.customStart.y][cfg.customStart.x].type = 'start';
         fileMaze[center.y][center.x].type = 'goal';
         setMaze(fileMaze);
+        baseMazeRef.current = fileMaze.map(row => row.map(cell => ({ ...cell })));
         // Initialize agents after maze is set
         setTimeout(() => {
           mazeRef.current = fileMaze;
@@ -244,6 +216,7 @@ export function useMazeSimulation(config: SimulationConfig) {
 
     const newMaze = generateMaze(cfg.mazeSize, cfg.obstacleRate, cfg.customStart, center);
     setMaze(newMaze);
+    baseMazeRef.current = newMaze.map(row => row.map(cell => ({ ...cell })));
     setTimeout(() => {
       mazeRef.current = newMaze;
       initializeAgents();
@@ -284,13 +257,12 @@ export function useMazeSimulation(config: SimulationConfig) {
         // Strategy logic
         switch (agent.strategy) {
           case 'follower': {
-            if (leader && leader.id !== agent.id && leader.path) {
-              const idx = leader.path.findIndex(
-                p => p.x === leader.position.x && p.y === leader.position.y,
-              );
-              if (idx >= 0 && idx + 1 < leader.path.length) {
-                const next = leader.path[idx + 1];
-                if (next && isValidPos(next, size) && m[next.y][next.x].type !== 'obstacle') {
+            if (leader && leader.id !== agent.id && leader.position) {
+              // Follow the leader by pathfinding toward its current position
+              const toLeader = findPath(m, agent.position, leader.position, agent.pathfindingAlgorithm, agent.heuristicType);
+              if (toLeader.path.length > 1) {
+                const next = toLeader.path[1];
+                if (next && isValidPos(next, size) && m[next.y]?.[next.x]?.type !== 'obstacle') {
                   targetPos = next;
                 }
               }
@@ -379,6 +351,7 @@ export function useMazeSimulation(config: SimulationConfig) {
           updated[i] = {
             ...agent,
             position: clampPosition(targetPos, size),
+            previousPosition: { ...agent.position },
             stepsTaken: agent.stepsTaken + 1,
           };
         }
@@ -441,9 +414,12 @@ export function useMazeSimulation(config: SimulationConfig) {
   }, []);
 
   // ── Dynamic obstacle adjustment (every ~10s) ──
+  // Only adds/removes obstacles from cells that were originally 'empty' in
+  // the base maze, preserving structural walls that were 'obstacle' originally.
   const dynamicObstacleTick = useCallback(() => {
     const cfg = configRef.current;
-    if (!isRunning || isPaused) return;
+    const base = baseMazeRef.current;
+    if (!isRunning || isPaused || !base) return;
 
     tickRef.current++;
     if (tickRef.current % 50 === 0) {
@@ -451,7 +427,69 @@ export function useMazeSimulation(config: SimulationConfig) {
       const newRate = Math.max(0.1, Math.min(0.5, cfg.obstacleRate + change));
 
       setMaze(prev => {
-        const adjusted = adjustObstacleRate(prev, newRate, cfg.customStart, cfg.customGoal);
+        // Only adjust cells that were 'empty' in the original base maze
+        const adjusted = prev.map((row, y) =>
+          row.map((cell, x) => {
+            const baseType = base[y]?.[x]?.type;
+            // Never modify structural walls, start, or goal
+            if (baseType !== 'empty') return { ...cell };
+            // Never modify start/goal positions
+            if (
+              (x === cfg.customStart.x && y === cfg.customStart.y) ||
+              (x === cfg.customGoal.x && y === cfg.customGoal.y)
+            ) return { ...cell };
+            return { ...cell };
+          }),
+        );
+
+        // Count current obstacles among modifiable cells
+        let currentObstacles = 0;
+        let modifiableCount = 0;
+        for (let y = 0; y < adjusted.length; y++) {
+          for (let x = 0; x < adjusted[y].length; x++) {
+            if (base[y][x].type === 'empty') {
+              modifiableCount++;
+              if (adjusted[y][x].type === 'obstacle') currentObstacles++;
+            }
+          }
+        }
+
+        if (modifiableCount === 0) return adjusted;
+
+        const targetObstacles = Math.round(newRate * modifiableCount);
+
+        if (targetObstacles > currentObstacles) {
+          // Add obstacles
+          let added = 0;
+          let safety = 0;
+          const toAdd = targetObstacles - currentObstacles;
+          while (added < toAdd && safety++ < modifiableCount * 2) {
+            const x = Math.floor(Math.random() * adjusted[0].length);
+            const y = Math.floor(Math.random() * adjusted.length);
+            if (base[y][x].type !== 'empty') continue;
+            if (
+              (x === cfg.customStart.x && y === cfg.customStart.y) ||
+              (x === cfg.customGoal.x && y === cfg.customGoal.y) ||
+              adjusted[y][x].type === 'obstacle'
+            ) continue;
+            adjusted[y][x].type = 'obstacle';
+            added++;
+          }
+        } else if (targetObstacles < currentObstacles) {
+          // Remove obstacles — only from originally-empty cells
+          let removed = 0;
+          let safety = 0;
+          const toRemove = currentObstacles - targetObstacles;
+          while (removed < toRemove && safety++ < modifiableCount * 2) {
+            const x = Math.floor(Math.random() * adjusted[0].length);
+            const y = Math.floor(Math.random() * adjusted.length);
+            if (base[y][x].type !== 'empty') continue;
+            if (adjusted[y][x].type !== 'obstacle') continue;
+            adjusted[y][x].type = 'empty';
+            removed++;
+          }
+        }
+
         // Clear obstacles under active agents
         for (const agent of agentsRef.current) {
           if (agent.isActive && agent.position && isValidPos(agent.position, cfg.mazeSize)) {
@@ -460,6 +498,7 @@ export function useMazeSimulation(config: SimulationConfig) {
             }
           }
         }
+
         return adjusted;
       });
 
@@ -516,6 +555,7 @@ export function useMazeSimulation(config: SimulationConfig) {
     parsed[center.y][center.x].type = 'goal';
     setMaze(parsed);
     mazeRef.current = parsed;
+    baseMazeRef.current = parsed.map(row => row.map(cell => ({ ...cell })));
     toast.success('迷宫文件解析成功！');
     return true;
   }, []);
