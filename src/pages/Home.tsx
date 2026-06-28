@@ -118,8 +118,10 @@ export default function Home() {
               disabled={experiment.isRunning}
               className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all disabled:opacity-50"
             >
-              <BarChart3 className="w-4 h-4 mr-2" />
-              启发式对比
+              <BarChart3 className={`w-4 h-4 mr-2 ${experiment.isRunning ? 'animate-spin' : ''}`} />
+              {experiment.isRunning
+                ? `对比中 ${experiment.progress}/5...`
+                : '启发式对比'}
             </button>
             <button
               onClick={toggleTheme}
