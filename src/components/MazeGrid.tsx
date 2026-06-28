@@ -276,7 +276,7 @@ export default function MazeGrid({
     <div ref={containerRef} className="relative w-full max-w-[800px] mx-auto aspect-square">
       <canvas
         ref={canvasRef}
-        className="w-full h-full rounded-lg border-2 border-gray-300 dark:border-gray-600 shadow-lg"
+        className="w-full h-full rounded-xl border border-zinc-200 dark:border-zinc-800"
       />
     </div>
   );
