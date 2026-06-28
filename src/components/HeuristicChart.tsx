@@ -26,7 +26,7 @@ export default function HeuristicChart({ data }: HeuristicChartProps) {
             label={{ value: '障碍率', position: 'insideBottom', offset: -5 }}
             tickFormatter={v => `${(v * 100).toFixed(0)}%`}
           />
-          <YAxis label={{ value: '路径长度', angle: -90, position: 'insideLeft' }} />
+          <YAxis label={{ value: '探索节点数', angle: -90, position: 'insideLeft' }} />
           <Tooltip
             formatter={(value: number) => [`${value}`, '']}
             labelFormatter={v => `障碍率: ${(Number(v) * 100).toFixed(0)}%`}

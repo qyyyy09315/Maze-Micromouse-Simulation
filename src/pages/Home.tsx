@@ -120,7 +120,7 @@ export default function Home() {
             >
               <BarChart3 className={`w-4 h-4 mr-2 ${experiment.isRunning ? 'animate-spin' : ''}`} />
               {experiment.isRunning
-                ? `对比中 ${experiment.progress}/5...`
+                ? `对比中 ${experiment.progress}/8...`
                 : '启发式对比'}
             </button>
             <button
