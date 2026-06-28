@@ -104,15 +104,21 @@ export default function ControlPanel(props: ControlPanelProps) {
             <button onClick={() => setMazeSize(Math.min(MAX_MAZE_SIZE, mazeSize + 10))} disabled={isRunning}
               className="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50">+</button>
           </div>
+          {mazeSize > 100 && (
+            <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+              大迷宫（&gt;100）寻路计算量较大，建议使用 1–2 个智能体以获得流畅体验
+            </p>
+          )}
         </div>
 
         {/* Obstacle rate */}
         <div>
           <label className={labelCls}>障碍率: {(obstacleRate * 100).toFixed(0)}%</label>
-          <input type="range" min="0.1" max="0.8" step="0.05" value={obstacleRate}
+          <input type="range" min="0.1" max="0.5" step="0.05" value={obstacleRate}
             onChange={e => setObstacleRate(parseFloat(e.target.value))}
             disabled={isRunning}
             className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer" />
+          <p className="text-xs text-gray-400 mt-1">合理范围 10%–50%，超过 50% 迷宫可能不可解</p>
         </div>
 
         {/* Heuristic */}

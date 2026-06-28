@@ -100,6 +100,11 @@ export function useMazeSimulation(config: SimulationConfig) {
   const resultsRef = useRef(competitionResults);
   resultsRef.current = competitionResults;
 
+  // Performance: throttle expensive pathfinding on large mazes
+  const tickCountRef = useRef(0);
+  // Cache leader→goal path to avoid duplicate pathfinding per tick
+  const leaderPathCache = useRef<{ tick: number; path: Position[] } | null>(null);
+
   // ── Regenerate maze when size/obstacle/start changes ──
   useEffect(() => {
     const center = getCenterPosition(config.mazeSize);
@@ -221,16 +226,41 @@ export function useMazeSimulation(config: SimulationConfig) {
     const size = m.length;
     const goal = cfg.customGoal;
 
+    tickCountRef.current++;
+
+    // Recalculate leader→goal cache periodically
+    const RECALC_INTERVAL = Math.max(5, Math.floor(size / 20)); // scale with maze size
+
     setAgents(prevAgents => {
       const updated = prevAgents.map(a => ({ ...a }));
       const active = updated.filter(a => a.isActive && a.position);
 
-      // Find leading agent
+      // Find leading agent (closest to goal)
       const leader = active.length > 0
         ? active.reduce((prev, cur) =>
             euclideanDistance(cur.position, goal) < euclideanDistance(prev.position, goal) ? cur : prev,
           )
         : null;
+
+      // Cache leader→goal path within this tick (used by multiple competitors)
+      let cachedLeaderToGoal: Position[] | null = null;
+      const getLeaderToGoal = (): Position[] => {
+        if (cachedLeaderToGoal) return cachedLeaderToGoal;
+        if (
+          leaderPathCache.current &&
+          leaderPathCache.current.tick >= tickCountRef.current - RECALC_INTERVAL
+        ) {
+          cachedLeaderToGoal = leaderPathCache.current.path;
+          return cachedLeaderToGoal;
+        }
+        const result = findPath(
+          m, leader!.position, goal,
+          leader!.pathfindingAlgorithm, leader!.heuristicType,
+        );
+        cachedLeaderToGoal = result.path;
+        leaderPathCache.current = { tick: tickCountRef.current, path: result.path };
+        return cachedLeaderToGoal;
+      };
 
       for (let i = 0; i < updated.length; i++) {
         const agent = updated[i];
@@ -242,15 +272,16 @@ export function useMazeSimulation(config: SimulationConfig) {
           continue;
         }
 
-        const agentHeuristic = agent.heuristicType === 'auto' ? undefined : agent.heuristicType;
         let targetPos: Position | null = null;
 
-        // Strategy logic
+        // Strategy logic — throttled for performance on large mazes
         switch (agent.strategy) {
           case 'follower': {
             if (leader && leader.id !== agent.id && leader.position) {
-              // Follow the leader by pathfinding toward its current position
-              const toLeader = findPath(m, agent.position, leader.position, agent.pathfindingAlgorithm, agent.heuristicType);
+              const toLeader = findPath(
+                m, agent.position, leader.position,
+                agent.pathfindingAlgorithm, agent.heuristicType,
+              );
               if (toLeader.path.length > 1) {
                 const next = toLeader.path[1];
                 if (next && isValidPos(next, size) && m[next.y]?.[next.x]?.type !== 'obstacle') {
@@ -262,22 +293,29 @@ export function useMazeSimulation(config: SimulationConfig) {
           }
           case 'competitor': {
             if (leader && leader.id !== agent.id && leader.position) {
-              const leadResult = agent.pathfindingAlgorithm === 'bfs'
-                ? bfsPathfinding(m, leader.position, goal)
-                : aStarPathfinding(m, leader.position, goal, agentHeuristic);
-              if (leadResult.path.length > 2) {
-                const interceptIdx = Math.min(3, leadResult.path.length - 1);
-                const interceptPt = leadResult.path[interceptIdx];
-                if (interceptPt && isValidPos(interceptPt, size)) {
-                  const toIntercept = agent.pathfindingAlgorithm === 'bfs'
-                    ? bfsPathfinding(m, agent.position, interceptPt)
-                    : aStarPathfinding(m, agent.position, interceptPt, agentHeuristic);
-                  if (toIntercept.path.length > 1) {
-                    const next = toIntercept.path[1];
-                    if (next && isValidPos(next, size)) targetPos = next;
+              // Throttle: recalculate intercept plan periodically
+              const shouldRecalc = tickCountRef.current % RECALC_INTERVAL === 0 ||
+                tickCountRef.current % RECALC_INTERVAL === (agent.id + 1);
+
+              if (shouldRecalc) {
+                const leadPath = getLeaderToGoal();
+                if (leadPath.length > 2) {
+                  const interceptIdx = Math.min(3, leadPath.length - 1);
+                  const interceptPt = leadPath[interceptIdx];
+                  if (interceptPt && isValidPos(interceptPt, size)) {
+                    const toIntercept = findPath(
+                      m, agent.position, interceptPt,
+                      agent.pathfindingAlgorithm, agent.heuristicType,
+                    );
+                    if (toIntercept.path.length > 1) {
+                      const next = toIntercept.path[1];
+                      if (next && isValidPos(next, size)) targetPos = next;
+                    }
                   }
                 }
               }
+              // During non-throttled ticks, just follow existing path or move one step
+              // (falls through to default path-following below)
             }
             break;
           }
@@ -298,7 +336,7 @@ export function useMazeSimulation(config: SimulationConfig) {
           }
         }
 
-        // Default: follow own path or recalculate
+        // Default: follow own path or recalculate (also throttled on large mazes)
         if (!targetPos) {
           const path = agent.path;
           const nextIdx = agent.stepsTaken + 1;
@@ -312,13 +350,19 @@ export function useMazeSimulation(config: SimulationConfig) {
           ) {
             targetPos = path[nextIdx];
           } else {
-            // Recalculate path
-            const result = findPath(m, agent.position, goal, agent.pathfindingAlgorithm, agent.heuristicType);
-            if (result.path.length > 0) {
-              updated[i].path = result.path;
-              targetPos = result.path[1] || result.path[0];
-            } else {
-              // Stuck — try random move
+            // Throttle recalculation on large mazes (>100)
+            const shouldRecalcPath = size <= 100 || tickCountRef.current % RECALC_INTERVAL === (agent.id % RECALC_INTERVAL);
+            if (shouldRecalcPath) {
+              const result = findPath(m, agent.position, goal, agent.pathfindingAlgorithm, agent.heuristicType);
+              if (result.path.length > 0) {
+                updated[i].path = result.path;
+                targetPos = result.path[1] || result.path[0];
+                updated[i].stepsTaken = 0;
+              }
+            }
+
+            // If throttled (not recalculating yet), try random move as fallback
+            if (!targetPos) {
               const dirs = [
                 { x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 },
               ];
