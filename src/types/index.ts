@@ -60,3 +60,13 @@ export const AGENT_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C
 export const MAX_AGENTS = 5;
 export const MIN_MAZE_SIZE = 10;
 export const MAX_MAZE_SIZE = 500;
+
+// ── Simulation timing constants ──
+export const SIM_TICK_MS = 200;
+export const EXPERIMENT_DEFER_MS = 50;
+export const COLLISION_MAX_ROUNDS = 10;
+
+// ── Rendering thresholds ──
+export const CELL_SIZE_LABEL_THRESHOLD = 10;
+export const CELL_SIZE_SG_THRESHOLD = 12;
+export const CELL_SIZE_BORDER_THRESHOLD = 6;

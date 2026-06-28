@@ -12,7 +12,7 @@ import ControlPanel from '../components/ControlPanel';
 import StatsPanel from '../components/StatsPanel';
 
 export default function Home() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, handleToggleTheme } = useTheme();
 
   const [mazeSize, setMazeSize] = useState(DEFAULT_MAZE_SIZE);
   const [obstacleRate, setObstacleRate] = useState(DEFAULT_OBSTACLE_RATE);
@@ -124,7 +124,7 @@ export default function Home() {
             </button>
 
             <button
-              onClick={toggleTheme}
+              onClick={handleToggleTheme}
               className="p-2 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors duration-200 active:scale-[0.95]"
               title={theme === 'dark' ? '浅色模式' : '深色模式'}
             >

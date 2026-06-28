@@ -58,8 +58,10 @@ export default function StatsPanel({
                       <tr key={result.agentId} className="border-b border-zinc-100 dark:border-zinc-800/50">
                         <td className={tdCls}>
                           <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded-full inline-block"
-                              style={{ backgroundColor: AGENT_COLORS[result.agentId % AGENT_COLORS.length] }} />
+                            <span
+                              className="w-3 h-3 rounded-full shrink-0"
+                              style={{ backgroundColor: AGENT_COLORS[result.agentId % AGENT_COLORS.length] }}
+                            />
                             智能体 {result.agentId + 1}
                           </div>
                         </td>

@@ -3,7 +3,7 @@ import type {
   Maze, Position, Agent, HeuristicType, PathfindingAlgorithm,
   AgentStrategy, CompetitionResult, Cell,
 } from '../types';
-import { AGENT_COLORS } from '../types';
+import { AGENT_COLORS, SIM_TICK_MS } from '../types';
 import {
   aStarPathfinding, bfsPathfinding, generateMaze,
   checkCollisions, euclideanDistance,
@@ -481,7 +481,7 @@ export function useMazeSimulation(config: SimulationConfig) {
 
     const interval = setInterval(() => {
       simulationTick();
-    }, 200);
+    }, SIM_TICK_MS);
 
     return () => clearInterval(interval);
   }, [isRunning, isPaused, simulationTick]);

@@ -17,13 +17,13 @@ export function useTheme() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => {
+  const handleToggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
 
   return {
     theme,
-    toggleTheme,
+    handleToggleTheme,
     isDark: theme === 'dark'
   };
 } 

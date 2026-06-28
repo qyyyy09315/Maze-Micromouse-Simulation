@@ -1,5 +1,10 @@
 import { useRef, useEffect, useCallback } from 'react';
 import type { Maze, Agent } from '../types';
+import {
+  CELL_SIZE_LABEL_THRESHOLD,
+  CELL_SIZE_SG_THRESHOLD,
+  CELL_SIZE_BORDER_THRESHOLD,
+} from '../types';
 
 interface MazeGridProps {
   maze: Maze;
@@ -124,7 +129,7 @@ export default function MazeGrid({
           ctx.fillRect(node.x * cellSize, node.y * cellSize, cellSize, cellSize);
 
           // Subtle border on explored cells for cellSize > 6
-          if (cellSize > 6) {
+          if (cellSize > CELL_SIZE_BORDER_THRESHOLD) {
             ctx.strokeStyle = borderColor;
             ctx.lineWidth = 0.3;
             ctx.strokeRect(
@@ -182,7 +187,7 @@ export default function MazeGrid({
       ctx.globalAlpha = 1;
 
       // Agent ID label
-      if (cellSize > 10) {
+      if (cellSize > CELL_SIZE_LABEL_THRESHOLD) {
         ctx.fillStyle = '#fff';
         ctx.font = `bold ${Math.max(8, cellSize * 0.32)}px sans-serif`;
         ctx.textAlign = 'center';
@@ -192,7 +197,7 @@ export default function MazeGrid({
     }
 
     // ── Layer 5: S / G labels ──
-    if (cellSize > 12) {
+    if (cellSize > CELL_SIZE_SG_THRESHOLD) {
       ctx.fillStyle = '#fff';
       ctx.font = `bold ${Math.max(10, cellSize * 0.4)}px sans-serif`;
       ctx.textAlign = 'center';

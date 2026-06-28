@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ExperimentResult, Maze, Position, Cell } from '../types';
+import { EXPERIMENT_DEFER_MS } from '../types';
 import { aStarPathfinding, bfsPathfinding } from '../algorithms';
 import { toast } from 'sonner';
 
@@ -136,7 +137,7 @@ export function useExperiment(mazeSize: number) {
       setExperimentResults(results);
       setIsRunning(false);
       toast.success('启发式对比实验完成！');
-    }, 50);
+    }, EXPERIMENT_DEFER_MS);
   }, []);
 
   return { experimentResults, isRunning, progress, runHeuristicComparison };
