@@ -18,14 +18,14 @@ export default function Home() {
   // ── Config state ──
   const [mazeSize, setMazeSize] = useState(DEFAULT_MAZE_SIZE);
   const [obstacleRate, setObstacleRate] = useState(DEFAULT_OBSTACLE_RATE);
-  const [agentCount, setAgentCount] = useState(3);
+  const [agentCount, setAgentCount] = useState(2);
   const [selectedHeuristic, setSelectedHeuristic] = useState<HeuristicType | 'auto'>('auto');
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<PathfindingAlgorithm>('astar');
   const [agentHeuristics, setAgentHeuristics] = useState<(HeuristicType | 'auto')[]>(
-    Array(agentCount).fill('auto' as HeuristicType | 'auto'),
+    ['auto', 'auto'],
   );
   const [agentAlgorithms, setAgentAlgorithms] = useState<PathfindingAlgorithm[]>(
-    Array(agentCount).fill('astar' as PathfindingAlgorithm),
+    ['bfs', 'astar'],
   );
   const [useSameStart, setUseSameStart] = useState(false);
   const [showExploration, setShowExploration] = useState(true);

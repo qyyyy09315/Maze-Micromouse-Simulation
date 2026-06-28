@@ -111,6 +111,9 @@ export function useMazeSimulation(config: SimulationConfig) {
     const goal = config.customGoal.x === 0 && config.customGoal.y === 0 ? center : config.customGoal;
     const newMaze = generateMaze(config.mazeSize, config.obstacleRate, config.customStart, goal);
     setMaze(newMaze);
+    // Clear stale agents and results from previous maze
+    setAgents([]);
+    setCompetitionResults([]);
   }, [config.mazeSize, config.obstacleRate, config.customStart, config.customGoal]);
 
   // ── Initialize agents ──
