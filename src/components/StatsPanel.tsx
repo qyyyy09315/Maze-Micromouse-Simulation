@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Award, ChevronDown } from 'lucide-react';
 import type { CompetitionResult, ExperimentResult } from '../types';
 import { AGENT_COLORS } from '../types';
@@ -13,6 +13,13 @@ export default function StatsPanel({
   competitionResults, experimentResults,
 }: StatsPanelProps) {
   const [show, setShow] = useState(false);
+
+  // Auto-expand when results become available
+  useEffect(() => {
+    if (competitionResults.length > 0 || experimentResults.length > 0) {
+      setShow(true);
+    }
+  }, [competitionResults.length, experimentResults.length]);
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">

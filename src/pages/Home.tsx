@@ -18,14 +18,14 @@ export default function Home() {
   // ── Config state ──
   const [mazeSize, setMazeSize] = useState(DEFAULT_MAZE_SIZE);
   const [obstacleRate, setObstacleRate] = useState(DEFAULT_OBSTACLE_RATE);
-  const [agentCount, setAgentCount] = useState(3);
+  const [agentCount, setAgentCount] = useState(2);
   const [selectedHeuristic, setSelectedHeuristic] = useState<HeuristicType | 'auto'>('auto');
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<PathfindingAlgorithm>('astar');
   const [agentHeuristics, setAgentHeuristics] = useState<(HeuristicType | 'auto')[]>(
-    Array(agentCount).fill('auto' as HeuristicType | 'auto'),
+    ['auto', 'auto'],
   );
   const [agentAlgorithms, setAgentAlgorithms] = useState<PathfindingAlgorithm[]>(
-    Array(agentCount).fill('astar' as PathfindingAlgorithm),
+    ['bfs', 'astar'],
   );
   const [useSameStart, setUseSameStart] = useState(false);
   const [showExploration, setShowExploration] = useState(true);
@@ -56,9 +56,15 @@ export default function Home() {
     });
   }, [agentCount, selectedAlgorithm]);
 
-  // Initialize customGoal to center when maze size changes
+  // Update customGoal to center on maze size change, clamp customStart to bounds
   useEffect(() => {
-    setCustomGoal({ x: Math.floor(mazeSize / 2), y: Math.floor(mazeSize / 2) });
+    const size = mazeSize;
+    setCustomGoal({ x: Math.floor(size / 2), y: Math.floor(size / 2) });
+    // Clamp customStart to prevent out-of-bounds crash when maze shrinks
+    setCustomStart(prev => ({
+      x: Math.min(prev.x, size - 1),
+      y: Math.min(prev.y, size - 1),
+    }));
   }, [mazeSize]);
 
   // ── Simulation hook ──
@@ -112,8 +118,10 @@ export default function Home() {
               disabled={experiment.isRunning}
               className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all disabled:opacity-50"
             >
-              <BarChart3 className="w-4 h-4 mr-2" />
-              启发式对比
+              <BarChart3 className={`w-4 h-4 mr-2 ${experiment.isRunning ? 'animate-spin' : ''}`} />
+              {experiment.isRunning
+                ? `对比中 ${experiment.progress}/5...`
+                : '启发式对比'}
             </button>
             <button
               onClick={toggleTheme}

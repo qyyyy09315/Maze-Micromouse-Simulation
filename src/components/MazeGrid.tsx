@@ -16,20 +16,34 @@ const COLORS = {
   obstacle: '#374151',
   start: '#22c55e',
   goal: '#ef4444',
-  explored: '#bfdbfe',
-  finalPath: '#fde68a',
   border: '#d1d5db',
   darkEmpty: '#1f2937',
   darkObstacle: '#111827',
-  darkExplored: '#1e3a5f',
-  darkFinalPath: '#78350f',
   darkBorder: '#4b5563',
+  legendBg: 'rgba(255,255,255,0.85)',
+  darkLegendBg: 'rgba(31,41,55,0.85)',
+  legendText: '#374151',
+  darkLegendText: '#e5e7eb',
 };
+
+/** Convert hex color to rgba with custom alpha */
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function algoLabel(agent: Agent): string {
+  const abbr = agent.pathfindingAlgorithm === 'bfs' ? 'BFS' : 'A*';
+  if (agent.heuristicType !== 'auto') return `${abbr}(${agent.heuristicType[0].toUpperCase()})`;
+  return abbr;
+}
 
 /**
  * Canvas-based maze renderer.
- * Handles up to 500x500 mazes without DOM explosion.
- * Falls back to simple div grid for small mazes (< 30) for crisp rendering.
+ * Exploration uses per-agent colors so BFS vs A* patterns are visually distinct.
+ * Handles up to 500×500 mazes without DOM explosion.
  */
 export default function MazeGrid({
   maze, mazeSize, agents, showExploration, showPath, currentSearchStep,
@@ -60,59 +74,78 @@ export default function MazeGrid({
 
     const cellSize = size / mazeSize;
 
-    // Draw cells
+    // ── Layer 1: Cell backgrounds ──
     for (let y = 0; y < mazeSize; y++) {
       for (let x = 0; x < mazeSize; x++) {
         const cell = maze[y]?.[x];
         if (!cell) continue;
 
-        let color: string;
+        let fillColor: string;
         switch (cell.type) {
           case 'obstacle':
-            color = isDark ? COLORS.darkObstacle : COLORS.obstacle;
+            fillColor = isDark ? COLORS.darkObstacle : COLORS.obstacle;
             break;
           case 'start':
-            color = COLORS.start;
+            fillColor = COLORS.start;
             break;
           case 'goal':
-            color = COLORS.goal;
+            fillColor = COLORS.goal;
             break;
           default:
-            color = isDark ? COLORS.darkEmpty : COLORS.empty;
+            fillColor = isDark ? COLORS.darkEmpty : COLORS.empty;
         }
 
-        ctx.fillStyle = color;
+        ctx.fillStyle = fillColor;
         ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
 
-        // Border
+        // Grid line
         ctx.strokeStyle = isDark ? COLORS.darkBorder : COLORS.border;
         ctx.lineWidth = cellSize > 8 ? 0.5 : 0.2;
         ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
       }
     }
 
-    // Draw explored nodes
+    // ── Layer 2: Explored nodes (per-agent color, semi-transparent) ──
     if (showExploration && currentSearchStep > 0) {
-      for (const agent of agents) {
+      // Draw higher-ID agents first so lower-ID appear on top (less important agents under)
+      const sorted = [...agents].sort((a, b) => b.id - a.id);
+      for (const agent of sorted) {
         const nodes = agent.exploredNodes.slice(0, currentSearchStep);
+        if (nodes.length === 0) continue;
+
+        const fillColor = hexToRgba(agent.color, isDark ? 0.3 : 0.22);
+        const borderColor = hexToRgba(agent.color, 0.5);
+
         for (const node of nodes) {
           const cell = maze[node.y]?.[node.x];
-          if (cell && (cell.type === 'empty' || cell.type === 'start' || cell.type === 'goal')) {
-            ctx.fillStyle = isDark ? COLORS.darkExplored : COLORS.explored;
-            ctx.fillRect(node.x * cellSize, node.y * cellSize, cellSize, cellSize);
+          if (!cell || cell.type === 'obstacle') continue;
+
+          ctx.fillStyle = fillColor;
+          ctx.fillRect(node.x * cellSize, node.y * cellSize, cellSize, cellSize);
+
+          // Subtle border on explored cells for cellSize > 6
+          if (cellSize > 6) {
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = 0.3;
+            ctx.strokeRect(
+              node.x * cellSize + 0.5,
+              node.y * cellSize + 0.5,
+              cellSize - 1,
+              cellSize - 1,
+            );
           }
         }
       }
     }
 
-    // Draw paths
+    // ── Layer 3: Planned paths ──
     if (showPath) {
       for (const agent of agents) {
         if (agent.path.length < 2) continue;
         ctx.beginPath();
         ctx.strokeStyle = agent.color;
-        ctx.lineWidth = Math.max(1, cellSize * 0.15);
-        ctx.globalAlpha = 0.6;
+        ctx.lineWidth = Math.max(1.5, cellSize * 0.2);
+        ctx.globalAlpha = agent.isActive ? 0.65 : 0.25;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
@@ -127,31 +160,38 @@ export default function MazeGrid({
       }
     }
 
-    // Draw agents
+    // ── Layer 4: Agents ──
     for (const agent of agents) {
       if (!agent.position) continue;
       const cx = (agent.position.x + 0.5) * cellSize;
       const cy = (agent.position.y + 0.5) * cellSize;
-      const radius = Math.max(2, cellSize * 0.35);
+      const radius = Math.max(2.5, cellSize * 0.38);
 
+      // Glow ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius + 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = isDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.7)';
+      ctx.fill();
+
+      // Agent circle
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.fillStyle = agent.color;
-      ctx.globalAlpha = agent.isActive ? 0.85 : 0.4;
+      ctx.globalAlpha = agent.isActive ? 0.9 : 0.35;
       ctx.fill();
       ctx.globalAlpha = 1;
 
-      // Agent ID text
+      // Agent ID label
       if (cellSize > 10) {
         ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.max(8, cellSize * 0.3)}px sans-serif`;
+        ctx.font = `bold ${Math.max(8, cellSize * 0.32)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${agent.id + 1}`, cx, cy);
       }
     }
 
-    // Draw S/G labels
+    // ── Layer 5: S / G labels ──
     if (cellSize > 12) {
       ctx.fillStyle = '#fff';
       ctx.font = `bold ${Math.max(10, cellSize * 0.4)}px sans-serif`;
@@ -166,6 +206,56 @@ export default function MazeGrid({
             ctx.fillText('G', (x + 0.5) * cellSize, (y + 0.5) * cellSize);
           }
         }
+      }
+    }
+
+    // ── Layer 6: Legend (multi-agent mode) ──
+    if (agents.length > 1 && cellSize > 6) {
+      const padX = 10;
+      const padY = 8;
+      const itemH = Math.max(14, cellSize * 0.55);
+      const itemW = Math.max(80, cellSize * 5);
+      const legendW = itemW + padX * 2;
+      const legendH = agents.length * itemH + padY * 2;
+
+      // Background
+      ctx.fillStyle = isDark ? COLORS.darkLegendBg : COLORS.legendBg;
+      ctx.strokeStyle = isDark ? COLORS.darkBorder : COLORS.border;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(size - legendW - 6, 6, legendW, legendH, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // Items
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const fontSize = Math.max(9, itemH * 0.55);
+      ctx.font = `${fontSize}px system-ui, sans-serif`;
+
+      for (let i = 0; i < agents.length; i++) {
+        const agent = agents[i];
+        const y = 6 + padY + i * itemH + itemH / 2;
+        const swatchX = size - legendW - 6 + padX + 4;
+
+        // Color swatch
+        ctx.fillStyle = agent.color;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.roundRect(swatchX, y - itemH * 0.32, itemH * 0.64, itemH * 0.64, 3);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Text
+        ctx.fillStyle = isDark ? COLORS.darkLegendText : COLORS.legendText;
+        const speed = agent.pathfindingTime
+          ? `${agent.pathfindingTime.toFixed(1)}ms`
+          : '';
+        ctx.fillText(
+          `A${agent.id + 1} ${algoLabel(agent)} ${speed}`,
+          swatchX + itemH * 0.8,
+          y,
+        );
       }
     }
   }, [maze, mazeSize, agents, showExploration, showPath, currentSearchStep, isDark]);

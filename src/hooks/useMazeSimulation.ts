@@ -59,43 +59,6 @@ function parseMazeFile(content: string, mazeSize: number): Maze | null {
   return maze;
 }
 
-function adjustObstacleRate(
-  maze: Maze, targetRate: number, start: Position, goal: Position,
-): Maze {
-  const newMaze = maze.map(row => row.map(cell => ({ ...cell })));
-  const total = newMaze.length * newMaze[0].length;
-  let current = 0;
-  for (const row of newMaze) for (const c of row) if (c.type === 'obstacle') current++;
-  const target = Math.round(targetRate * total);
-
-  if (target > current) {
-    let added = 0;
-    let safety = 0;
-    while (added < target - current && safety++ < total * 2) {
-      const x = Math.floor(Math.random() * newMaze[0].length);
-      const y = Math.floor(Math.random() * newMaze.length);
-      if (
-        (x === start.x && y === start.y) ||
-        (x === goal.x && y === goal.y) ||
-        newMaze[y][x].type === 'obstacle'
-      ) continue;
-      newMaze[y][x].type = 'obstacle';
-      added++;
-    }
-  } else if (target < current) {
-    let removed = 0;
-    let safety = 0;
-    while (removed < current - target && safety++ < total * 2) {
-      const x = Math.floor(Math.random() * newMaze[0].length);
-      const y = Math.floor(Math.random() * newMaze.length);
-      if (newMaze[y][x].type !== 'obstacle') continue;
-      newMaze[y][x].type = 'empty';
-      removed++;
-    }
-  }
-  return newMaze;
-}
-
 // ─── Hook ─────────────────────────────────────────────────
 
 export interface SimulationConfig {
@@ -136,7 +99,11 @@ export function useMazeSimulation(config: SimulationConfig) {
   mazeRef.current = maze;
   const resultsRef = useRef(competitionResults);
   resultsRef.current = competitionResults;
-  const tickRef = useRef(0);
+
+  // Performance: throttle expensive pathfinding on large mazes
+  const tickCountRef = useRef(0);
+  // Cache leader→goal path to avoid duplicate pathfinding per tick
+  const leaderPathCache = useRef<{ tick: number; path: Position[] } | null>(null);
 
   // ── Regenerate maze when size/obstacle/start changes ──
   useEffect(() => {
@@ -144,7 +111,10 @@ export function useMazeSimulation(config: SimulationConfig) {
     const goal = config.customGoal.x === 0 && config.customGoal.y === 0 ? center : config.customGoal;
     const newMaze = generateMaze(config.mazeSize, config.obstacleRate, config.customStart, goal);
     setMaze(newMaze);
-  }, [config.mazeSize, config.obstacleRate, config.customStart]);
+    // Clear stale agents and results from previous maze
+    setAgents([]);
+    setCompetitionResults([]);
+  }, [config.mazeSize, config.obstacleRate, config.customStart, config.customGoal]);
 
   // ── Initialize agents ──
   const initializeAgents = useCallback(() => {
@@ -189,6 +159,7 @@ export function useMazeSimulation(config: SimulationConfig) {
       newAgents.push({
         id: i,
         position: clampPosition(startPos, size),
+        previousPosition: null,
         path: result.path.length > 0
           ? result.path.map(p => clampPosition(p, size))
           : [clampPosition(startPos, size)],
@@ -223,15 +194,16 @@ export function useMazeSimulation(config: SimulationConfig) {
   const resetExperiment = useCallback(() => {
     setIsRunning(false);
     setIsPaused(false);
-    tickRef.current = 0;
     const cfg = configRef.current;
     const center = getCenterPosition(cfg.mazeSize);
 
     if (cfg.mazeSource === 'file' && cfg.fileContent) {
       const fileMaze = parseMazeFile(cfg.fileContent, cfg.mazeSize);
       if (fileMaze) {
-        fileMaze[cfg.customStart.y][cfg.customStart.x].type = 'start';
-        fileMaze[center.y][center.x].type = 'goal';
+        const start = clampPosition(cfg.customStart, cfg.mazeSize);
+        fileMaze[start.y][start.x].type = 'start';
+        const goalPos = clampPosition(cfg.customGoal.x === 0 && cfg.customGoal.y === 0 ? center : cfg.customGoal, cfg.mazeSize);
+        fileMaze[goalPos.y][goalPos.x].type = 'goal';
         setMaze(fileMaze);
         // Initialize agents after maze is set
         setTimeout(() => {
@@ -257,16 +229,41 @@ export function useMazeSimulation(config: SimulationConfig) {
     const size = m.length;
     const goal = cfg.customGoal;
 
+    tickCountRef.current++;
+
+    // Recalculate leader→goal cache periodically
+    const RECALC_INTERVAL = Math.max(5, Math.floor(size / 20)); // scale with maze size
+
     setAgents(prevAgents => {
       const updated = prevAgents.map(a => ({ ...a }));
       const active = updated.filter(a => a.isActive && a.position);
 
-      // Find leading agent
+      // Find leading agent (closest to goal)
       const leader = active.length > 0
         ? active.reduce((prev, cur) =>
             euclideanDistance(cur.position, goal) < euclideanDistance(prev.position, goal) ? cur : prev,
           )
         : null;
+
+      // Cache leader→goal path within this tick (used by multiple competitors)
+      let cachedLeaderToGoal: Position[] | null = null;
+      const getLeaderToGoal = (): Position[] => {
+        if (cachedLeaderToGoal) return cachedLeaderToGoal;
+        if (
+          leaderPathCache.current &&
+          leaderPathCache.current.tick >= tickCountRef.current - RECALC_INTERVAL
+        ) {
+          cachedLeaderToGoal = leaderPathCache.current.path;
+          return cachedLeaderToGoal;
+        }
+        const result = findPath(
+          m, leader!.position, goal,
+          leader!.pathfindingAlgorithm, leader!.heuristicType,
+        );
+        cachedLeaderToGoal = result.path;
+        leaderPathCache.current = { tick: tickCountRef.current, path: result.path };
+        return cachedLeaderToGoal;
+      };
 
       for (let i = 0; i < updated.length; i++) {
         const agent = updated[i];
@@ -278,19 +275,19 @@ export function useMazeSimulation(config: SimulationConfig) {
           continue;
         }
 
-        const agentHeuristic = agent.heuristicType === 'auto' ? undefined : agent.heuristicType;
         let targetPos: Position | null = null;
 
-        // Strategy logic
+        // Strategy logic — throttled for performance on large mazes
         switch (agent.strategy) {
           case 'follower': {
-            if (leader && leader.id !== agent.id && leader.path) {
-              const idx = leader.path.findIndex(
-                p => p.x === leader.position.x && p.y === leader.position.y,
+            if (leader && leader.id !== agent.id && leader.position) {
+              const toLeader = findPath(
+                m, agent.position, leader.position,
+                agent.pathfindingAlgorithm, agent.heuristicType,
               );
-              if (idx >= 0 && idx + 1 < leader.path.length) {
-                const next = leader.path[idx + 1];
-                if (next && isValidPos(next, size) && m[next.y][next.x].type !== 'obstacle') {
+              if (toLeader.path.length > 1) {
+                const next = toLeader.path[1];
+                if (next && isValidPos(next, size) && m[next.y]?.[next.x]?.type !== 'obstacle') {
                   targetPos = next;
                 }
               }
@@ -299,22 +296,29 @@ export function useMazeSimulation(config: SimulationConfig) {
           }
           case 'competitor': {
             if (leader && leader.id !== agent.id && leader.position) {
-              const leadResult = agent.pathfindingAlgorithm === 'bfs'
-                ? bfsPathfinding(m, leader.position, goal)
-                : aStarPathfinding(m, leader.position, goal, agentHeuristic);
-              if (leadResult.path.length > 2) {
-                const interceptIdx = Math.min(3, leadResult.path.length - 1);
-                const interceptPt = leadResult.path[interceptIdx];
-                if (interceptPt && isValidPos(interceptPt, size)) {
-                  const toIntercept = agent.pathfindingAlgorithm === 'bfs'
-                    ? bfsPathfinding(m, agent.position, interceptPt)
-                    : aStarPathfinding(m, agent.position, interceptPt, agentHeuristic);
-                  if (toIntercept.path.length > 1) {
-                    const next = toIntercept.path[1];
-                    if (next && isValidPos(next, size)) targetPos = next;
+              // Throttle: recalculate intercept plan periodically
+              const shouldRecalc = tickCountRef.current % RECALC_INTERVAL === 0 ||
+                tickCountRef.current % RECALC_INTERVAL === (agent.id + 1);
+
+              if (shouldRecalc) {
+                const leadPath = getLeaderToGoal();
+                if (leadPath.length > 2) {
+                  const interceptIdx = Math.min(3, leadPath.length - 1);
+                  const interceptPt = leadPath[interceptIdx];
+                  if (interceptPt && isValidPos(interceptPt, size)) {
+                    const toIntercept = findPath(
+                      m, agent.position, interceptPt,
+                      agent.pathfindingAlgorithm, agent.heuristicType,
+                    );
+                    if (toIntercept.path.length > 1) {
+                      const next = toIntercept.path[1];
+                      if (next && isValidPos(next, size)) targetPos = next;
+                    }
                   }
                 }
               }
+              // During non-throttled ticks, just follow existing path or move one step
+              // (falls through to default path-following below)
             }
             break;
           }
@@ -335,7 +339,7 @@ export function useMazeSimulation(config: SimulationConfig) {
           }
         }
 
-        // Default: follow own path or recalculate
+        // Default: follow own path or recalculate (also throttled on large mazes)
         if (!targetPos) {
           const path = agent.path;
           const nextIdx = agent.stepsTaken + 1;
@@ -349,13 +353,19 @@ export function useMazeSimulation(config: SimulationConfig) {
           ) {
             targetPos = path[nextIdx];
           } else {
-            // Recalculate path
-            const result = findPath(m, agent.position, goal, agent.pathfindingAlgorithm, agent.heuristicType);
-            if (result.path.length > 0) {
-              updated[i].path = result.path;
-              targetPos = result.path[1] || result.path[0];
-            } else {
-              // Stuck — try random move
+            // Throttle recalculation on large mazes (>100)
+            const shouldRecalcPath = size <= 100 || tickCountRef.current % RECALC_INTERVAL === (agent.id % RECALC_INTERVAL);
+            if (shouldRecalcPath) {
+              const result = findPath(m, agent.position, goal, agent.pathfindingAlgorithm, agent.heuristicType);
+              if (result.path.length > 0) {
+                updated[i].path = result.path;
+                targetPos = result.path[1] || result.path[0];
+                updated[i].stepsTaken = 0;
+              }
+            }
+
+            // If throttled (not recalculating yet), try random move as fallback
+            if (!targetPos) {
               const dirs = [
                 { x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 },
               ];
@@ -379,6 +389,7 @@ export function useMazeSimulation(config: SimulationConfig) {
           updated[i] = {
             ...agent,
             position: clampPosition(targetPos, size),
+            previousPosition: { ...agent.position },
             stepsTaken: agent.stepsTaken + 1,
           };
         }
@@ -440,33 +451,6 @@ export function useMazeSimulation(config: SimulationConfig) {
     });
   }, []);
 
-  // ── Dynamic obstacle adjustment (every ~10s) ──
-  const dynamicObstacleTick = useCallback(() => {
-    const cfg = configRef.current;
-    if (!isRunning || isPaused) return;
-
-    tickRef.current++;
-    if (tickRef.current % 50 === 0) {
-      const change = (Math.random() - 0.5) * 0.1;
-      const newRate = Math.max(0.1, Math.min(0.5, cfg.obstacleRate + change));
-
-      setMaze(prev => {
-        const adjusted = adjustObstacleRate(prev, newRate, cfg.customStart, cfg.customGoal);
-        // Clear obstacles under active agents
-        for (const agent of agentsRef.current) {
-          if (agent.isActive && agent.position && isValidPos(agent.position, cfg.mazeSize)) {
-            if (adjusted[agent.position.y][agent.position.x].type === 'obstacle') {
-              adjusted[agent.position.y][agent.position.x].type = 'empty';
-            }
-          }
-        }
-        return adjusted;
-      });
-
-      toast.info(`迷宫障碍率已调整为：${(newRate * 100).toFixed(0)}%`);
-    }
-  }, [isRunning, isPaused]);
-
   // ── Visualization animation ──
   useEffect(() => {
     if (!isRunning || isPaused || !config.showExploration) return;
@@ -497,11 +481,10 @@ export function useMazeSimulation(config: SimulationConfig) {
 
     const interval = setInterval(() => {
       simulationTick();
-      dynamicObstacleTick();
     }, 200);
 
     return () => clearInterval(interval);
-  }, [isRunning, isPaused, simulationTick, dynamicObstacleTick]);
+  }, [isRunning, isPaused, simulationTick]);
 
   // ── File parsing ──
   const loadMazeFile = useCallback((content: string): boolean => {
@@ -511,9 +494,11 @@ export function useMazeSimulation(config: SimulationConfig) {
       toast.error('无效的迷宫文件：行列数不匹配或包含非法字符');
       return false;
     }
-    parsed[cfg.customStart.y][cfg.customStart.x].type = 'start';
+    const start = clampPosition(cfg.customStart, cfg.mazeSize);
+    parsed[start.y][start.x].type = 'start';
     const center = getCenterPosition(cfg.mazeSize);
-    parsed[center.y][center.x].type = 'goal';
+    const goalPos = clampPosition(cfg.customGoal.x === 0 && cfg.customGoal.y === 0 ? center : cfg.customGoal, cfg.mazeSize);
+    parsed[goalPos.y][goalPos.x].type = 'goal';
     setMaze(parsed);
     mazeRef.current = parsed;
     toast.success('迷宫文件解析成功！');
