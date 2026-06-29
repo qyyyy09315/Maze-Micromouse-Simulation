@@ -3,16 +3,22 @@
 @tailwind utilities;
 
 :root {
-  line-height: 1.5;
+  font-family: 'Noto Serif SC', 'Times New Roman', serif;
+  line-height: 1.75;
   font-weight: 400;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Tabular figures for data-heavy interfaces */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
+/* Academic table style: three-line table */
+table.academic th { font-weight: 600; }
+table.academic thead tr { border-bottom-width: 1.5px; }
+
+/* Tabular figures for data alignment */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Baseline rhythm utilities */
+.text-balance { text-wrap: balance; }
+.text-pretty { text-wrap: pretty; }

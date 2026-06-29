@@ -1,98 +1,61 @@
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { ExperimentResult } from '../types';
-import { AGENT_COLORS } from '../types';
 
-interface HeuristicChartProps {
-  data: ExperimentResult[];
-}
+interface HeuristicChartProps { data: ExperimentResult[]; }
 
-const STROKES = {
-  manhattan: AGENT_COLORS[0], // red
-  euclidean: AGENT_COLORS[1], // teal
-  diagonal: AGENT_COLORS[2], // blue
-  optimal: '#f59e0b',        // amber
+// ColorBrewer Set2 — academic, colorblind-safe palette
+const PALETTE = {
+  manhattan: '#66c2a5',
+  euclidean: '#fc8d62',
+  diagonal: '#8da0cb',
+  optimal: '#e78ac3',
 };
 
+function useIsDark() {
+  const [dark, setDark] = React.useState(false);
+  React.useEffect(() => {
+    setDark(document.documentElement.classList.contains('dark'));
+    const o = new MutationObserver(() => setDark(document.documentElement.classList.contains('dark')));
+    o.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => o.disconnect();
+  }, []);
+  return dark;
+}
+
+import React from 'react';
+
 export default function HeuristicChart({ data }: HeuristicChartProps) {
+  const isDark = useIsDark();
+
   if (data.length === 0) {
     return (
-      <div className="h-72 w-full flex items-center justify-center text-sm text-zinc-400 dark:text-zinc-500">
-        点击顶部「启发式对比」按钮运行实验
+      <div className={`h-64 w-full flex items-center justify-center text-sm ${isDark ? 'text-stone-500' : 'text-stone-400'}`}>
+        点击「启发式对比实验」按钮生成图表
       </div>
     );
   }
 
   return (
-    <div className="h-72 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
-          <XAxis
-            dataKey="obstacleRate"
-            tick={{ fontSize: 12 }}
-            tickFormatter={v => `${(Number(v) * 100).toFixed(0)}%`}
-            tickLine={false}
-            axisLine={false}
-          />
-          <YAxis
-            tick={{ fontSize: 12 }}
-            tickLine={false}
-            axisLine={false}
-            width={45}
-          />
+    <div className="h-64 w-full">
+      <ResponsiveContainer>
+        <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#44403c' : '#d6d3d1'} />
+          <XAxis dataKey="obstacleRate" tick={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
+            tickFormatter={v => `${(Number(v) * 100).toFixed(0)}%`} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }} tickLine={false} axisLine={false} width={48} />
           <Tooltip
             contentStyle={{
-              borderRadius: '8px',
-              border: '1px solid #e4e4e7',
-              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.07)',
-              fontSize: '13px',
+              borderRadius: 4, border: `1px solid ${isDark ? '#57534e' : '#d6d3d1'}`,
+              background: isDark ? '#1c1917' : '#fafaf9', fontSize: 12, fontFamily: 'JetBrains Mono, monospace',
             }}
             formatter={(value: number) => [value.toLocaleString(), '']}
             labelFormatter={v => `障碍率 ${(Number(v) * 100).toFixed(0)}%`}
           />
-          <Legend
-            iconType="circle"
-            iconSize={8}
-            wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }}
-          />
-          <Line
-            type="monotone"
-            dataKey="manhattanNodes"
-            name="曼哈顿"
-            stroke={STROKES.manhattan}
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-          <Line
-            type="monotone"
-            dataKey="euclideanNodes"
-            name="欧几里得"
-            stroke={STROKES.euclidean}
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-          <Line
-            type="monotone"
-            dataKey="diagonalNodes"
-            name="对角线"
-            stroke={STROKES.diagonal}
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-          <Line
-            type="monotone"
-            dataKey="optimalNodes"
-            name="最优"
-            stroke={STROKES.optimal}
-            strokeWidth={1.5}
-            strokeDasharray="4 4"
-            dot={false}
-          />
+          <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
+          <Line type="monotone" dataKey="manhattanNodes" name="曼哈顿距离" stroke={PALETTE.manhattan} strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+          <Line type="monotone" dataKey="euclideanNodes" name="欧几里得距离" stroke={PALETTE.euclidean} strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+          <Line type="monotone" dataKey="diagonalNodes" name="对角线优化" stroke={PALETTE.diagonal} strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+          <Line type="monotone" dataKey="optimalNodes" name="最优（下界）" stroke={PALETTE.optimal} strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>

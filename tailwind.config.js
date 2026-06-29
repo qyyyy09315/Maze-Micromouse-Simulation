@@ -13,8 +13,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Outfit', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        sans: ['"Noto Serif SC"', 'Georgia', '"Times New Roman"', 'serif'],
+        mono: ['"JetBrains Mono"', '"Courier New"', 'monospace'],
       },
     },
   },
